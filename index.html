@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASCII Webcam</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>ASCII Webcam</h1>
+    <p class="subtitle">Live camera feed rendered as text art</p>
+  </header>
+
+  <main>
+    <div class="controls">
+      <button id="startBtn">Start Camera</button>
+      <button id="stopBtn" disabled>Stop Camera</button>
+      <button id="flipBtn" disabled>Flip Camera</button>
+
+      <label class="control">
+        Resolution
+        <input type="range" id="resSlider" min="40" max="160" value="100" step="4">
+        <span id="resValue">100</span>
+      </label>
+
+      <label class="control">
+        Color
+        <input type="checkbox" id="colorToggle">
+      </label>
+
+      <label class="control">
+        Invert
+        <input type="checkbox" id="invertToggle">
+      </label>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div class="stage">
+      <pre id="ascii-output" aria-label="ASCII rendering of webcam feed"></pre>
+    </div>
+  </main>
+
+  <video id="video" playsinline autoplay muted style="display:none;"></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <script src="script.js"></script>
+</body>
+</html>
