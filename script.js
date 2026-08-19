@@ -3,6 +3,7 @@
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const output = document.getElementById('ascii-output');
+  const stage = document.querySelector('.stage');
   const statusEl = document.getElementById('status');
 
   const startBtn = document.getElementById('startBtn');
@@ -15,6 +16,8 @@
 
   // Darkest to lightest; index chosen by luminance.
   const ASCII_RAMP = '@%#*+=-:. ';
+  const CELL_ASPECT = 0.5; // width/height of one ascii "cell" (cols x rows) to mimic a CRT grid
+  const GLYPH_WIDTH_RATIO = 0.6; // monospace advance width as a fraction of font-size
 
   let stream = null;
   let rafId = null;
@@ -89,12 +92,36 @@
   function frameToAscii() {
     if (!video.videoWidth || !video.videoHeight) return;
 
-    const aspectCorrection = 0.55; // characters are taller than they are wide
-    const rows = Math.max(1, Math.round((cols * video.videoHeight) / video.videoWidth * aspectCorrection));
+    const stageWidth = stage.clientWidth;
+    const stageHeight = stage.clientHeight;
+    if (!stageWidth || !stageHeight) return;
+
+    const stageAspect = stageWidth / stageHeight;
+    const rows = Math.max(1, Math.round((cols * CELL_ASPECT) / stageAspect));
 
     canvas.width = cols;
     canvas.height = rows;
-    ctx.drawImage(video, 0, 0, cols, rows);
+
+    // Cover-crop the video so the screen fills without stretching.
+    const videoAspect = video.videoWidth / video.videoHeight;
+    let sx = 0;
+    let sy = 0;
+    let sWidth = video.videoWidth;
+    let sHeight = video.videoHeight;
+    if (videoAspect > stageAspect) {
+      sWidth = video.videoHeight * stageAspect;
+      sx = (video.videoWidth - sWidth) / 2;
+    } else {
+      sHeight = video.videoWidth / stageAspect;
+      sy = (video.videoHeight - sHeight) / 2;
+    }
+    ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, cols, rows);
+
+    // Size the grid in CSS px so it exactly fills the fixed screen area.
+    const cellWidth = stageWidth / cols;
+    const cellHeight = stageHeight / rows;
+    output.style.fontSize = `${cellWidth / GLYPH_WIDTH_RATIO}px`;
+    output.style.lineHeight = `${cellHeight}px`;
 
     const { data } = ctx.getImageData(0, 0, cols, rows);
     const useColor = colorToggle.checked;
