@@ -13,9 +13,11 @@
   const resValue = document.getElementById('resValue');
   const colorToggle = document.getElementById('colorToggle');
   const invertToggle = document.getElementById('invertToggle');
+  const charsetInput = document.getElementById('charsetInput');
+  const charsetResetBtn = document.getElementById('charsetResetBtn');
 
   // Darkest to lightest; index chosen by luminance.
-  const ASCII_RAMP = '@%#*+=-:. ';
+  const DEFAULT_ASCII_RAMP = '@%#*+=-:. ';
   const CELL_ASPECT = 0.5; // width/height of one ascii "cell" (cols x rows) to mimic a CRT grid
   const GLYPH_WIDTH_RATIO = 0.6; // monospace advance width as a fraction of font-size
 
@@ -23,6 +25,9 @@
   let rafId = null;
   let facingMode = 'user';
   let cols = Number(resSlider.value);
+  let asciiRamp = DEFAULT_ASCII_RAMP;
+
+  charsetInput.value = DEFAULT_ASCII_RAMP;
 
   function setStatus(msg) {
     statusEl.textContent = msg;
@@ -126,9 +131,13 @@
     const { data } = ctx.getImageData(0, 0, cols, rows);
     const useColor = colorToggle.checked;
     const invert = invertToggle.checked;
+    const COLOR_STEP = 32; // quantize color so runs of pixels can share one <span>
 
     let html = '';
     for (let y = 0; y < rows; y++) {
+      let runColor = null;
+      let runChars = '';
+
       for (let x = 0; x < cols; x++) {
         const i = (y * cols + x) * 4;
         const r = data[i];
@@ -138,16 +147,33 @@
         if (invert) luminance = 1 - luminance;
 
         const rampIndex = Math.min(
-          ASCII_RAMP.length - 1,
-          Math.floor((1 - luminance) * ASCII_RAMP.length)
+          asciiRamp.length - 1,
+          Math.floor((1 - luminance) * asciiRamp.length)
         );
-        const char = ASCII_RAMP[rampIndex] === ' ' ? '&nbsp;' : ASCII_RAMP[rampIndex];
+        const char = asciiRamp[rampIndex] === ' ' ? '&nbsp;' : asciiRamp[rampIndex];
 
         if (useColor) {
-          html += `<span style="color:rgb(${r},${g},${b})">${char}</span>`;
+          const qr = Math.round(r / COLOR_STEP) * COLOR_STEP;
+          const qg = Math.round(g / COLOR_STEP) * COLOR_STEP;
+          const qb = Math.round(b / COLOR_STEP) * COLOR_STEP;
+          const color = `${qr},${qg},${qb}`;
+
+          if (color !== runColor) {
+            if (runColor !== null) {
+              html += `<span style="color:rgb(${runColor})">${runChars}</span>`;
+            }
+            runColor = color;
+            runChars = char;
+          } else {
+            runChars += char;
+          }
         } else {
           html += char;
         }
+      }
+
+      if (useColor && runColor !== null) {
+        html += `<span style="color:rgb(${runColor})">${runChars}</span>`;
       }
       html += '\n';
     }
@@ -162,6 +188,15 @@
   resSlider.addEventListener('input', () => {
     cols = Number(resSlider.value);
     resValue.textContent = String(cols);
+  });
+
+  charsetInput.addEventListener('input', () => {
+    asciiRamp = charsetInput.value.length > 0 ? charsetInput.value : DEFAULT_ASCII_RAMP;
+  });
+
+  charsetResetBtn.addEventListener('click', () => {
+    charsetInput.value = DEFAULT_ASCII_RAMP;
+    asciiRamp = DEFAULT_ASCII_RAMP;
   });
 
   startBtn.addEventListener('click', startCamera);
