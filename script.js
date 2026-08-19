@@ -15,17 +15,22 @@
   const invertToggle = document.getElementById('invertToggle');
   const charsetInput = document.getElementById('charsetInput');
   const charsetResetBtn = document.getElementById('charsetResetBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const polaroidBoard = document.getElementById('polaroidBoard');
+  const pinboardEmpty = document.getElementById('pinboardEmpty');
 
   // Darkest to lightest; index chosen by luminance.
   const DEFAULT_ASCII_RAMP = '@%#*+=-:. ';
   const CELL_ASPECT = 0.5; // width/height of one ascii "cell" (cols x rows) to mimic a CRT grid
   const GLYPH_WIDTH_RATIO = 0.6; // monospace advance width as a fraction of font-size
+  const MONO_COLOR = '214,245,214'; // matches --text, used for polaroid captures in monochrome mode
 
   let stream = null;
   let rafId = null;
   let facingMode = 'user';
   let cols = Number(resSlider.value);
   let asciiRamp = DEFAULT_ASCII_RAMP;
+  let lastFrame = null;
 
   charsetInput.value = DEFAULT_ASCII_RAMP;
 
@@ -51,6 +56,7 @@
       startBtn.disabled = true;
       stopBtn.disabled = false;
       flipBtn.disabled = false;
+      captureBtn.disabled = false;
       setStatus('Camera active.');
       renderLoop();
     } catch (err) {
@@ -70,9 +76,11 @@
     }
     video.srcObject = null;
     output.textContent = '';
+    lastFrame = null;
     startBtn.disabled = false;
     stopBtn.disabled = true;
     flipBtn.disabled = true;
+    captureBtn.disabled = true;
     setStatus('Camera stopped.');
   }
 
@@ -133,10 +141,15 @@
     const invert = invertToggle.checked;
     const COLOR_STEP = 32; // quantize color so runs of pixels can share one <span>
 
+    const frameChars = [];
+    const frameColors = useColor ? [] : null;
+
     let html = '';
     for (let y = 0; y < rows; y++) {
       let runColor = null;
       let runChars = '';
+      const rowChars = [];
+      const rowColors = useColor ? [] : null;
 
       for (let x = 0; x < cols; x++) {
         const i = (y * cols + x) * 4;
@@ -150,13 +163,16 @@
           asciiRamp.length - 1,
           Math.floor((1 - luminance) * asciiRamp.length)
         );
-        const char = asciiRamp[rampIndex] === ' ' ? '&nbsp;' : asciiRamp[rampIndex];
+        const rawChar = asciiRamp[rampIndex];
+        const char = rawChar === ' ' ? '&nbsp;' : rawChar;
+        rowChars.push(rawChar);
 
         if (useColor) {
           const qr = Math.round(r / COLOR_STEP) * COLOR_STEP;
           const qg = Math.round(g / COLOR_STEP) * COLOR_STEP;
           const qb = Math.round(b / COLOR_STEP) * COLOR_STEP;
           const color = `${qr},${qg},${qb}`;
+          rowColors.push(color);
 
           if (color !== runColor) {
             if (runColor !== null) {
@@ -176,8 +192,73 @@
         html += `<span style="color:rgb(${runColor})">${runChars}</span>`;
       }
       html += '\n';
+
+      frameChars.push(rowChars);
+      if (useColor) frameColors.push(rowColors);
     }
     output.innerHTML = html;
+    lastFrame = { cols, rows, chars: frameChars, colors: frameColors, useColor };
+  }
+
+  function capturePolaroid() {
+    if (!lastFrame) {
+      setStatus('Nothing to capture yet.');
+      return;
+    }
+
+    const { cols: fCols, rows: fRows, chars, colors, useColor } = lastFrame;
+    const shotWidth = 320;
+    const shotHeight = Math.round((shotWidth * stage.clientHeight) / stage.clientWidth) || 240;
+
+    const shotCanvas = document.createElement('canvas');
+    shotCanvas.width = shotWidth;
+    shotCanvas.height = shotHeight;
+    const shotCtx = shotCanvas.getContext('2d');
+
+    shotCtx.fillStyle = '#010401';
+    shotCtx.fillRect(0, 0, shotWidth, shotHeight);
+
+    const cellWidth = shotWidth / fCols;
+    const cellHeight = shotHeight / fRows;
+    shotCtx.font = `${cellWidth / GLYPH_WIDTH_RATIO}px Consolas, "Courier New", monospace`;
+    shotCtx.textBaseline = 'top';
+
+    for (let y = 0; y < fRows; y++) {
+      for (let x = 0; x < fCols; x++) {
+        const char = chars[y][x];
+        if (char === ' ') continue;
+        shotCtx.fillStyle = `rgb(${useColor ? colors[y][x] : MONO_COLOR})`;
+        shotCtx.fillText(char, x * cellWidth, y * cellHeight, cellWidth * 1.5);
+      }
+    }
+
+    // Faint scanlines so the polaroid matches the on-screen look.
+    shotCtx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    for (let y = 0; y < shotHeight; y += 4) {
+      shotCtx.fillRect(0, y, shotWidth, 2);
+    }
+
+    const dataUrl = shotCanvas.toDataURL('image/png');
+    addPolaroid(dataUrl);
+  }
+
+  function addPolaroid(dataUrl) {
+    if (pinboardEmpty) pinboardEmpty.remove();
+
+    const timestamp = new Date();
+    const caption = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const rotation = (Math.random() * 10 - 5).toFixed(1);
+
+    const card = document.createElement('div');
+    card.className = 'polaroid';
+    card.style.setProperty('--rot', `${rotation}deg`);
+    card.innerHTML = `
+      <div class="polaroid-pin"></div>
+      <img src="${dataUrl}" alt="ASCII snapshot taken at ${caption}">
+      <div class="polaroid-caption">${caption}</div>
+      <a class="polaroid-download" href="${dataUrl}" download="ascii-polaroid-${timestamp.getTime()}.png" title="Download">&#8681;</a>
+    `;
+    polaroidBoard.prepend(card);
   }
 
   function renderLoop() {
@@ -202,6 +283,7 @@
   startBtn.addEventListener('click', startCamera);
   stopBtn.addEventListener('click', stopCamera);
   flipBtn.addEventListener('click', flipCamera);
+  captureBtn.addEventListener('click', capturePolaroid);
 
   window.addEventListener('beforeunload', stopCamera);
 })();

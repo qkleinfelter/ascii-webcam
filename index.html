@@ -17,6 +17,7 @@
       <button id="startBtn">Start Camera</button>
       <button id="stopBtn" disabled>Stop Camera</button>
       <button id="flipBtn" disabled>Flip Camera</button>
+      <button id="captureBtn" disabled>Capture Polaroid</button>
 
       <label class="control">
         Resolution
@@ -55,6 +56,13 @@
       <div class="monitor-neck"></div>
       <div class="monitor-base"></div>
     </div>
+
+    <section class="pinboard">
+      <h2 class="pinboard-title">Snapshots</h2>
+      <div id="polaroidBoard" class="pinboard-surface">
+        <p class="pinboard-empty" id="pinboardEmpty">Captured polaroids will appear here.</p>
+      </div>
+    </section>
   </main>
 
   <video id="video" playsinline autoplay muted style="display:none;"></video>
